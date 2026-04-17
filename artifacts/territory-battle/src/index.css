@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --font-sans: var(--app-font-sans);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  --background: 220 20% 6%;
+  --foreground: 220 10% 95%;
+  --border: 220 15% 16%;
+  --card: 220 18% 10%;
+  --card-foreground: 220 10% 95%;
+  --primary: 38 92% 55%;
+  --primary-foreground: 220 20% 6%;
+  --secondary: 220 15% 16%;
+  --secondary-foreground: 220 10% 85%;
+  --muted: 220 15% 13%;
+  --muted-foreground: 220 10% 55%;
+  --accent: 210 90% 55%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 75% 55%;
+  --app-font-sans: 'Inter', 'Segoe UI', sans-serif;
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background: radial-gradient(ellipse at top, hsl(220 20% 9%) 0%, hsl(220 20% 4%) 100%);
+    min-height: 100vh;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px 0px currentColor; }
+  50% { box-shadow: 0 0 20px 4px currentColor; }
+}
+
+@keyframes score-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+@keyframes float-up {
+  0% { opacity: 1; transform: translateY(0px) scale(1); }
+  100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+@keyframes rank-change {
+  0% { transform: translateY(0); background-color: transparent; }
+  50% { background-color: rgba(251, 191, 36, 0.15); }
+  100% { transform: translateY(0); background-color: transparent; }
+}
+
+.score-pop {
+  animation: score-pop 0.3s ease-out;
+}
+
+.float-point {
+  animation: float-up 1.2s ease-out forwards;
+  pointer-events: none;
+}
+
+.rank-flash {
+  animation: rank-change 0.5s ease-out;
+}
+
+.winner-glow {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
