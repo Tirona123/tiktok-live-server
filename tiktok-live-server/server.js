@@ -9,29 +9,34 @@ const TIKTOK_USERNAME = "fotballnews.24";
 const PORT = process.env.PORT || 3001;
 
 // =====================
-// HTTP + WEBSOCKET SERVER (RENDER FIX)
+// SERVER (RENDER SAFE)
 // =====================
 const server = http.createServer();
-
 const wss = new WebSocket.Server({ server });
 
 server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
-  console.log(`✅ WebSocket running on ws://localhost:${PORT}`);
 });
 
 // =====================
-// TIKTOK LIVE CONNECTION
+// TIKTOK LIVE
 // =====================
-const tiktok = new WebcastPushConnection(TIKTOK_USERNAME);
+const tiktok = new WebcastPushConnection("fotballnews.24");
 
-tiktok.connect()
-  .then(() => {
+// STABLE CONNECT (FIX FOR RENDER CRASH)
+async function startTikTok() {
+  try {
+    await tiktok.connect();
     console.log("✅ Connected to TikTok LIVE");
-  })
-  .catch(err => {
-    console.error("❌ TikTok connection error:", err);
-  });
+  } catch (err) {
+    console.error("❌ TikTok connection failed:", err);
+
+    // retry automatik
+    setTimeout(startTikTok, 10000);
+  }
+}
+
+startTikTok();
 
 // =====================
 // GIFT HANDLER
@@ -46,11 +51,10 @@ tiktok.on("gift", (data) => {
       eventName: data.giftName,
       points: data.diamondCount || 1,
       emoji: "🎁",
-      countryId: "albania" // për momentin fikse
+      countryId: "albania"
     }
   };
 
-  // broadcast te loja
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(payload));
@@ -59,19 +63,19 @@ tiktok.on("gift", (data) => {
 });
 
 // =====================
-// CLIENT CONNECTION
+// CONNECTION LOG
 // =====================
 wss.on("connection", (ws) => {
-  console.log("🔗 Client connected to WebSocket");
+  console.log("🔗 Client connected");
 });
 
 // =====================
-// ERROR HANDLING (stability fix)
+// GLOBAL ERROR SAFETY
 // =====================
-tiktok.on("error", (err) => {
-  console.error("⚠️ TikTok error:", err);
+process.on("uncaughtException", (err) => {
+  console.error("🔥 Uncaught Exception:", err);
 });
 
-wss.on("error", (err) => {
-  console.error("⚠️ WebSocket error:", err);
+process.on("unhandledRejection", (err) => {
+  console.error("🔥 Unhandled Rejection:", err);
 });
