@@ -1,14 +1,11 @@
 {
   "name": "tiktok-live-server",
   "version": "1.0.0",
-  "description": "TikTok Live Game Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "license": "MIT",
   "dependencies": {
-    "express": "^5.2.1",
     "tiktok-live-connector": "2.1.1-beta1",
     "ws": "^8.20.0"
   }
