@@ -1,56 +1,38 @@
 const { WebcastPushConnection } = require("tiktok-live-connector");
 const WebSocket = require("ws");
-const http = require("http");
+
+const PORT = process.env.PORT || 3000;
 
 // =====================
-// CONFIG
+// WEB SOCKET SERVER
 // =====================
-const TIKTOK_USERNAME = "fotballnews.24";
-const PORT = process.env.PORT || 3001;
+const wss = new WebSocket.Server({ port: PORT });
 
-// =====================
-// SERVER (RENDER SAFE)
-// =====================
-const server = http.createServer();
-const wss = new WebSocket.Server({ server });
-
-server.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+console.log("✅ Server running on port:", PORT);
 
 // =====================
 // TIKTOK LIVE
 // =====================
 const tiktok = new WebcastPushConnection("fotballnews.24");
 
-// STABLE CONNECT (FIX FOR RENDER CRASH)
-async function startTikTok() {
-  try {
-    await tiktok.connect();
+tiktok.connect()
+  .then(() => {
     console.log("✅ Connected to TikTok LIVE");
-  } catch (err) {
-    console.error("❌ TikTok connection failed:", err);
-
-    // retry automatik
-    setTimeout(startTikTok, 10000);
-  }
-}
-
-startTikTok();
+  })
+  .catch((err) => {
+    console.error("❌ TikTok error:", err);
+  });
 
 // =====================
-// GIFT HANDLER
+// GIFT EVENT
 // =====================
 tiktok.on("gift", (data) => {
-  console.log("🎁 Gift received:", data);
-
   const payload = {
     type: "gift",
     data: {
       viewerName: data.uniqueId,
-      eventName: data.giftName,
+      giftName: data.giftName,
       points: data.diamondCount || 1,
-      emoji: "🎁",
       countryId: "albania"
     }
   };
@@ -63,19 +45,8 @@ tiktok.on("gift", (data) => {
 });
 
 // =====================
-// CONNECTION LOG
+// CLIENT CONNECT
 // =====================
-wss.on("connection", (ws) => {
+wss.on("connection", () => {
   console.log("🔗 Client connected");
-});
-
-// =====================
-// GLOBAL ERROR SAFETY
-// =====================
-process.on("uncaughtException", (err) => {
-  console.error("🔥 Uncaught Exception:", err);
-});
-
-process.on("unhandledRejection", (err) => {
-  console.error("🔥 Unhandled Rejection:", err);
 });
