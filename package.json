@@ -2,10 +2,10 @@
   "name": "tiktok-live-server",
   "version": "1.0.0",
   "license": "MIT",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "private": true,
   "dependencies": {
     "express": "^5.2.1",
     "tiktok-live-connector": "2.1.1-beta1",
