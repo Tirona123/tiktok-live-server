@@ -21,6 +21,7 @@ export function GamePage() {
     sendGift,
     getSortedCountries,
     getMaxScore,
+    selectedCountry,
   } = useGameState();
 
   const sortedCountries = getSortedCountries();
@@ -30,14 +31,21 @@ export function GamePage() {
   const totalPoints = Object.values(scores).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ fontFamily: "'Inter', sans-serif" }}
+    >
       {/* Header */}
       <header className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-white/6">
         <div className="flex items-center gap-2.5">
           <div className="text-2xl">⚔️</div>
           <div>
-            <div className="text-white font-black text-lg leading-tight tracking-tight">Territory Battle</div>
-            <div className="text-white/35 text-xs font-medium">TikTok Live • 9 Countries</div>
+            <div className="text-white font-black text-lg leading-tight tracking-tight">
+              Territory Battle
+            </div>
+            <div className="text-white/35 text-xs font-medium">
+              TikTok Live • 9 Countries
+            </div>
           </div>
         </div>
 
@@ -45,13 +53,20 @@ export function GamePage() {
           {phase === "running" && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/15 border border-red-500/30">
               <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-red-400 text-xs font-bold uppercase tracking-wide">Live</span>
+              <span className="text-red-400 text-xs font-bold uppercase tracking-wide">
+                Live
+              </span>
             </div>
           )}
+
           {phase === "running" && (
             <div className="text-white/40 text-xs">
-              <span className="font-bold text-white/70">{totalEvents}</span> events ·{" "}
-              <span className="font-bold text-white/70">{totalPoints.toLocaleString()}</span> pts
+              <span className="font-bold text-white/70">{totalEvents}</span>{" "}
+              events ·{" "}
+              <span className="font-bold text-white/70">
+                {totalPoints.toLocaleString()}
+              </span>{" "}
+              pts
             </div>
           )}
         </div>
@@ -59,9 +74,11 @@ export function GamePage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col md:flex-row gap-0 overflow-hidden">
-        {/* Left: Leaderboard */}
+
+        {/* Left */}
         <div className="flex-1 flex flex-col px-3 pt-3 pb-4 min-w-0">
-          {/* Timer + CTA row */}
+
+          {/* Timer + CTA */}
           <div className="flex items-center justify-between mb-4">
             {phase === "idle" && (
               <div className="flex-1">
@@ -91,12 +108,18 @@ export function GamePage() {
                   Start Battle
                 </button>
               )}
+
               {phase === "running" && (
                 <div className="text-center">
-                  <div className="text-white/30 text-xs mb-1 uppercase tracking-wider">Tap country to support</div>
+                  <div className="text-white/30 text-xs mb-1 uppercase tracking-wider">
+                    Tap country to support
+                  </div>
+
                   <div className="flex gap-1 flex-wrap justify-center max-w-[120px]">
                     {EVENTS.slice(0, 3).map((e) => (
-                      <span key={e.name} className="text-lg">{e.emoji}</span>
+                      <span key={e.name} className="text-lg">
+                        {e.emoji}
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -121,40 +144,53 @@ export function GamePage() {
             ))}
           </div>
 
-          {/* Legend */}
-          {phase === "idle" && (
-            <div className="mt-6 grid grid-cols-3 gap-2">
-              {EVENTS.map((e) => (
-                <div
-                  key={e.name}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/4 border border-white/6"
-                >
-                  <span className="text-lg">{e.emoji}</span>
-                  <div>
-                    <div className="text-white/80 text-xs font-semibold">{e.name}</div>
-                    <div className="text-yellow-400 text-xs font-bold">+{e.points} pts</div>
-                  </div>
-                </div>
-              ))}
+          {/* Gift selector (NEW FEATURE) */}
+          {selectedCountry && (
+            <div className="mt-4 p-3 rounded-lg border border-white/10 bg-black/20">
+              <div className="text-white text-sm mb-2">
+                Selected country → choose gift:
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {EVENTS.map((e) => (
+                  <button
+                    key={e.name}
+                    onClick={() => sendGift(selectedCountry, e)}
+                    className="text-xs p-2 rounded bg-white/5 hover:bg-white/10 transition"
+                  >
+                    <div className="text-lg">{e.emoji}</div>
+                    <div className="text-white/70">{e.name}</div>
+                    <div className="text-yellow-400">+{e.points}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Right: Event feed */}
+        {/* Right */}
         {(phase === "running" || phase === "ended") && (
           <div className="w-full md:w-64 border-t md:border-t-0 md:border-l border-white/6 flex flex-col">
             <div className="px-3 py-2.5 border-b border-white/6 flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-white/60 text-xs font-bold uppercase tracking-wider">Live Events</span>
+              <span className="text-white/60 text-xs font-bold uppercase tracking-wider">
+                Live Events
+              </span>
             </div>
-            <div className="flex-1 p-2 overflow-hidden" style={{ height: "320px", maxHeight: "320px" }}>
+
+            <div
+              className="flex-1 p-2 overflow-hidden"
+              style={{ height: "320px", maxHeight: "320px" }}
+            >
               <EventFeed events={recentEvents} />
             </div>
 
-            {/* Quick support grid */}
             {phase === "running" && (
               <div className="border-t border-white/6 p-3">
-                <div className="text-white/40 text-xs mb-2 font-medium uppercase tracking-wider">Quick Support</div>
+                <div className="text-white/40 text-xs mb-2 font-medium uppercase tracking-wider">
+                  Quick Support
+                </div>
+
                 <div className="grid grid-cols-3 gap-1.5">
                   {COUNTRIES.slice(0, 9).map((country) => (
                     <button
@@ -163,8 +199,12 @@ export function GamePage() {
                       className="flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg border border-white/8 bg-white/4 text-xs font-semibold transition-all active:scale-95 hover:bg-white/8"
                       style={{ color: country.color }}
                     >
-                      <span className="text-base leading-none">{country.flag}</span>
-                      <span className="text-[10px] text-white/50 font-medium">{country.name}</span>
+                      <span className="text-base leading-none">
+                        {country.flag}
+                      </span>
+                      <span className="text-[10px] text-white/50 font-medium">
+                        {country.name}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -174,9 +214,13 @@ export function GamePage() {
         )}
       </div>
 
-      {/* Winner overlay */}
+      {/* Winner */}
       {phase === "ended" && winner && (
-        <WinnerScreen winnerId={winner} scores={scores} onReset={resetGame} />
+        <WinnerScreen
+          winnerId={winner}
+          scores={scores}
+          onReset={resetGame}
+        />
       )}
     </div>
   );

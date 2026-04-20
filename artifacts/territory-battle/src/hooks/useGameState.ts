@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { COUNTRIES, EVENTS, VIEWER_NAMES } from "../data/countries";
+import { COUNTRIES, EVENTS } from "../data/countries";
 
 export interface FloatingPoint {
   id: string;
@@ -20,108 +20,184 @@ export interface GameEvent {
   timestamp: number;
 }
 
-export interface CountryScore {
-  id: string;
-  score: number;
-  rank: number;
-  prevRank: number;
-}
-
 export type GamePhase = "idle" | "running" | "ended";
 
-const GAME_DURATION = 5 * 60; // 5 minutes in seconds
+const GAME_DURATION = 5 * 60;
 
 export function useGameState() {
   const [phase, setPhase] = useState<GamePhase>("idle");
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
+
   const [scores, setScores] = useState<Record<string, number>>(
     Object.fromEntries(COUNTRIES.map((c) => [c.id, 0]))
   );
+
   const [ranks, setRanks] = useState<Record<string, number>>(
     Object.fromEntries(COUNTRIES.map((c, i) => [c.id, i + 1]))
   );
+
   const [prevRanks, setPrevRanks] = useState<Record<string, number>>(
     Object.fromEntries(COUNTRIES.map((c, i) => [c.id, i + 1]))
   );
+
   const [recentEvents, setRecentEvents] = useState<GameEvent[]>([]);
   const [floatingPoints, setFloatingPoints] = useState<FloatingPoint[]>([]);
+
+  // ✅ NEW: viewer leaderboard
+  const [viewers, setViewers] = useState<Record<string, number>>({});
+
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
-  const [winner, setWinner] = useState<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const autoEventRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const floatCleanRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
+  // -------------------------
+  // RANKS FOR COUNTRIES
+  // -------------------------
   const computeRanks = useCallback((s: Record<string, number>) => {
     const sorted = Object.entries(s).sort(([, a], [, b]) => b - a);
     const newRanks: Record<string, number> = {};
-    sorted.forEach(([id], i) => { newRanks[id] = i + 1; });
+
+    sorted.forEach(([id], i) => {
+      newRanks[id] = i + 1;
+    });
+
     return newRanks;
   }, []);
 
-  const addPoints = useCallback((countryId: string, points: number, emoji: string, viewerName?: string, eventName?: string) => {
-    setScores((prev) => {
-      const updated = { ...prev, [countryId]: prev[countryId] + points };
-      const newRanks = computeRanks(updated);
-      setPrevRanks((r) => ({ ...r }));
-      setRanks(newRanks);
-      return updated;
-    });
+  // -------------------------
+  // ADD POINTS (MAIN ENGINE)
+  // -------------------------
+  const addPoints = useCallback(
+    (
+      countryId: string,
+      points: number,
+      emoji: string,
+      viewerName?: string,
+      eventName?: string
+    ) => {
+      setScores((prev) => {
+        const updated = {
+          ...prev,
+          [countryId]: (prev[countryId] ?? 0) + points,
+        };
 
-    // Add event to feed
-    if (viewerName && eventName) {
-      const event: GameEvent = {
-        id: `${Date.now()}-${Math.random()}`,
-        viewerName,
+        const newRanks = computeRanks(updated);
+        setPrevRanks(ranks);
+        setRanks(newRanks);
+
+        return updated;
+      });
+
+      // ✅ VIEWER LEADERBOARD UPDATE
+      if (viewerName) {
+        setViewers((prev) => ({
+          ...prev,
+          [viewerName]: (prev[viewerName] || 0) + points,
+        }));
+      }
+
+      // events
+      if (viewerName && eventName) {
+        const event: GameEvent = {
+          id: `${Date.now()}-${Math.random()}`,
+          viewerName,
+          countryId,
+          eventName,
+          emoji,
+          points,
+          timestamp: Date.now(),
+        };
+
+        setRecentEvents((prev) => [event, ...prev].slice(0, 30));
+      }
+
+      const fp: FloatingPoint = {
+        id: `fp-${Date.now()}-${Math.random()}`,
         countryId,
-        eventName,
-        emoji,
         points,
-        timestamp: Date.now(),
+        emoji,
+        x: 10 + Math.random() * 80,
+        y: 20 + Math.random() * 60,
       };
-      setRecentEvents((prev) => [event, ...prev].slice(0, 30));
-    }
 
-    // Floating point animation
-    const fp: FloatingPoint = {
-      id: `fp-${Date.now()}-${Math.random()}`,
-      countryId,
-      points,
-      emoji,
-      x: 10 + Math.random() * 80,
-      y: 20 + Math.random() * 60,
+      setFloatingPoints((prev) => [...prev, fp]);
+
+      setTimeout(() => {
+        setFloatingPoints((prev) =>
+          prev.filter((item) => item.id !== fp.id)
+        );
+      }, 1200);
+    },
+    [computeRanks, ranks]
+  );
+
+  // -------------------------
+  // SELECT COUNTRY
+  // -------------------------
+  const selectCountry = useCallback((countryId: string) => {
+    setSelectedCountry((prev) =>
+      prev === countryId ? null : countryId
+    );
+  }, []);
+
+  // -------------------------
+  // SEND GIFT (UPDATED FLOW)
+  // -------------------------
+  const sendGift = useCallback(
+    (countryId: string, gift?: (typeof EVENTS)[number]) => {
+      if (phase !== "running") return;
+
+      if (!gift) {
+        selectCountry(countryId);
+        return;
+      }
+
+      addPoints(
+        countryId,
+        gift.points,
+        gift.emoji,
+        "viewer",
+        gift.name
+      );
+
+      setSelectedCountry(null);
+    },
+    [phase, addPoints, selectCountry]
+  );
+
+  // -------------------------
+  // WEBSOCKET
+  // -------------------------
+  useEffect(() => {
+    const ws = new WebSocket("ws://localhost:3001");
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === "gift") {
+        const { countryId, points, emoji, viewerName, eventName } =
+          msg.data;
+
+        if (phase === "running") {
+          addPoints(
+            countryId,
+            points,
+            emoji,
+            viewerName,
+            eventName
+          );
+        }
+      }
     };
-    setFloatingPoints((prev) => [...prev, fp]);
-    setTimeout(() => {
-      setFloatingPoints((prev) => prev.filter((f) => f.id !== fp.id));
-    }, 1300);
-  }, [computeRanks]);
 
-  const startGame = useCallback(() => {
-    setPhase("running");
-    setTimeLeft(GAME_DURATION);
-    setWinner(null);
-    setScores(Object.fromEntries(COUNTRIES.map((c) => [c.id, 0])));
-    const initRanks = Object.fromEntries(COUNTRIES.map((c, i) => [c.id, i + 1]));
-    setRanks(initRanks);
-    setPrevRanks(initRanks);
-    setRecentEvents([]);
-    setFloatingPoints([]);
-  }, []);
+    wsRef.current = ws;
+    return () => ws.close();
+  }, [addPoints, phase]);
 
-  const resetGame = useCallback(() => {
-    setPhase("idle");
-    setTimeLeft(GAME_DURATION);
-    setWinner(null);
-    setScores(Object.fromEntries(COUNTRIES.map((c) => [c.id, 0])));
-    const initRanks = Object.fromEntries(COUNTRIES.map((c, i) => [c.id, i + 1]));
-    setRanks(initRanks);
-    setPrevRanks(initRanks);
-    setRecentEvents([]);
-    setFloatingPoints([]);
-  }, []);
-
-  // Countdown timer
+  // -------------------------
+  // TIMER
+  // -------------------------
   useEffect(() => {
     if (phase !== "running") {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -133,11 +209,6 @@ export function useGameState() {
         if (t <= 1) {
           clearInterval(timerRef.current!);
           setPhase("ended");
-          setScores((s) => {
-            const sorted = Object.entries(s).sort(([, a], [, b]) => b - a);
-            setWinner(sorted[0][0]);
-            return s;
-          });
           return 0;
         }
         return t - 1;
@@ -149,46 +220,56 @@ export function useGameState() {
     };
   }, [phase]);
 
-  // Auto-simulate viewer events
-  useEffect(() => {
-    if (phase !== "running") {
-      if (autoEventRef.current) clearInterval(autoEventRef.current);
-      return;
-    }
+  // -------------------------
+  // START GAME
+  // -------------------------
+  const startGame = useCallback(() => {
+    setPhase("running");
+    setTimeLeft(GAME_DURATION);
 
-    const simulate = () => {
-      // Random 1-4 events at a time
-      const count = 1 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < count; i++) {
-        const country = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
-        const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
-        const viewer = VIEWER_NAMES[Math.floor(Math.random() * VIEWER_NAMES.length)];
-        const extraPoints = Math.random() < 0.1 ? event.points * 3 : event.points; // occasional "super gift"
-        setTimeout(() => {
-          addPoints(country.id, extraPoints, event.emoji, viewer, event.name);
-        }, i * 100);
-      }
-    };
+    setScores(
+      Object.fromEntries(COUNTRIES.map((c) => [c.id, 0]))
+    );
 
-    autoEventRef.current = setInterval(simulate, 600 + Math.random() * 800);
-    return () => {
-      if (autoEventRef.current) clearInterval(autoEventRef.current);
-    };
-  }, [phase, addPoints]);
+    setViewers({}); // reset leaderboard
 
-  const sendGift = useCallback((countryId: string) => {
-    if (phase !== "running") return;
-    const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
-    addPoints(countryId, event.points * 2, event.emoji, "you", event.name);
-  }, [phase, addPoints]);
+    const initRanks = Object.fromEntries(
+      COUNTRIES.map((c, i) => [c.id, i + 1])
+    );
 
+    setRanks(initRanks);
+    setPrevRanks(initRanks);
+    setRecentEvents([]);
+    setFloatingPoints([]);
+    setSelectedCountry(null);
+  }, []);
+
+  const resetGame = useCallback(() => {
+    setPhase("idle");
+    setTimeLeft(GAME_DURATION);
+    setViewers({});
+    setSelectedCountry(null);
+  }, []);
+
+  // -------------------------
+  // HELPERS
+  // -------------------------
   const getSortedCountries = useCallback(() => {
-    return [...COUNTRIES].sort((a, b) => (scores[b.id] ?? 0) - (scores[a.id] ?? 0));
+    return [...COUNTRIES].sort(
+      (a, b) => (scores[b.id] ?? 0) - (scores[a.id] ?? 0)
+    );
   }, [scores]);
 
   const getMaxScore = useCallback(() => {
     return Math.max(...Object.values(scores), 1);
   }, [scores]);
+
+  // 🏆 VIEWER RANKING
+  const getViewerRanking = useCallback(() => {
+    return Object.entries(viewers)
+      .sort(([, a], [, b]) => b - a)
+      .map(([name, points]) => ({ name, points }));
+  }, [viewers]);
 
   return {
     phase,
@@ -198,9 +279,12 @@ export function useGameState() {
     prevRanks,
     recentEvents,
     floatingPoints,
+
     selectedCountry,
-    setSelectedCountry,
-    winner,
+
+    viewers,              // NEW
+    getViewerRanking,     // NEW
+
     startGame,
     resetGame,
     sendGift,
