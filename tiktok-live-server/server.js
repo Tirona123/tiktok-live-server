@@ -1,25 +1,29 @@
 const { WebcastPushConnection } = require("tiktok-live-connector");
 const WebSocket = require("ws");
+const http = require("http");
 
 // =====================
 // CONFIG
 // =====================
 const TIKTOK_USERNAME = "fotballnews.24";
-
-// Port (IMPORTANT for deploy)
 const PORT = process.env.PORT || 3001;
 
 // =====================
-// WEB SOCKET SERVER
+// HTTP + WEBSOCKET SERVER (RENDER FIX)
 // =====================
-const wss = new WebSocket.Server({ port: PORT });
+const server = http.createServer();
 
-console.log(`✅ WebSocket server running on ws://localhost:${PORT}`);
+const wss = new WebSocket.Server({ server });
+
+server.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`✅ WebSocket running on ws://localhost:${PORT}`);
+});
 
 // =====================
 // TIKTOK LIVE CONNECTION
 // =====================
-const tiktok = new WebcastPushConnection("fotballnews.24");
+const tiktok = new WebcastPushConnection(TIKTOK_USERNAME);
 
 tiktok.connect()
   .then(() => {
@@ -42,11 +46,11 @@ tiktok.on("gift", (data) => {
       eventName: data.giftName,
       points: data.diamondCount || 1,
       emoji: "🎁",
-      countryId: "albania" // për momentin fikse (mund ta bëjmë më pas dynamic)
+      countryId: "albania" // për momentin fikse
     }
   };
 
-  // Broadcast to all connected clients
+  // broadcast te loja
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(payload));
@@ -55,12 +59,19 @@ tiktok.on("gift", (data) => {
 });
 
 // =====================
-// CONNECTION EVENTS
+// CLIENT CONNECTION
 // =====================
 wss.on("connection", (ws) => {
   console.log("🔗 Client connected to WebSocket");
 });
 
-wss.on("close", () => {
-  console.log("❌ WebSocket client disconnected");
+// =====================
+// ERROR HANDLING (stability fix)
+// =====================
+tiktok.on("error", (err) => {
+  console.error("⚠️ TikTok error:", err);
+});
+
+wss.on("error", (err) => {
+  console.error("⚠️ WebSocket error:", err);
 });
